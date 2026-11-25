@@ -3,8 +3,9 @@ __pycache__/
 *.pyc
 .DS_Store
 
-# Lokaler Arbeitsstand: Warteschlange, Upload-Kopien, temporäre Audiodateien
+# Local runtime state: queue, upload copies, temporary audio
 data/
 
-# Standard-Ausgabeordner der Transkripte
+# Default transcript output folder
+transcripts/
 transkripte/

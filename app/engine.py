@@ -11,10 +11,10 @@ from . import exporters, media
 from .config import MODELS, RESULTS_DIR, TMP_DIR, UPLOAD_DIR
 from .media import Cancelled, natural_key
 
-log = logging.getLogger("transkription")
+log = logging.getLogger("transcriber")
 
 MODEL_RATES = {m["id"]: m["rate"] for m in MODELS}
-MERGED_NAME = "Alle_Transkripte.txt"
+MERGED_NAME = "All_Transcripts.txt"
 
 
 def result_path(job_id):
@@ -44,7 +44,7 @@ def download_model(repo_id):
 
     path = snapshot_download(repo_id=repo_id)
     if not _valid_model_dir(path):
-        raise RuntimeError(f"Modell {repo_id} ist unvollständig heruntergeladen.")
+        raise RuntimeError(f"error.model_incomplete: {repo_id}")
     return path
 
 
@@ -142,7 +142,7 @@ class Engine:
                         try:
                             self.merge()
                         except Exception:
-                            log.exception("Zusammenführen fehlgeschlagen")
+                            log.exception("Merging transcripts failed")
                     break
                 self._process(job)
 
@@ -162,9 +162,9 @@ class Engine:
 
         path = local_model_path(model_id)
         if path is None:
-            self._set_phase(job_id, "downloading", "Modell wird einmalig heruntergeladen …")
+            self._set_phase(job_id, "downloading", "Downloading model (one-time) …")
             path = download_model(model_id)
-        self._set_phase(job_id, "loading", "Modell wird geladen …")
+        self._set_phase(job_id, "loading", "Loading model …")
         tmod.ModelHolder.model = None
         tmod.ModelHolder.model_path = None
         self.loaded_model = None
@@ -191,27 +191,27 @@ class Engine:
         try:
             src = Path(job["source_path"])
             if not src.exists():
-                raise RuntimeError("Quelldatei nicht gefunden.")
+                raise RuntimeError("error.source_missing")
 
             self._ensure_model(job_id, model_id)
             if self.cancel_event.is_set():
                 raise Cancelled()
 
-            self._set_phase(job_id, "extracting", "Audiospur wird extrahiert …")
+            self._set_phase(job_id, "extracting", "Extracting audio …")
             media.extract_audio(src, wav, self.cancel_event)
             audio = media.load_wav(wav)
             wav.unlink(missing_ok=True)
             if audio.size < media.SAMPLE_RATE * 0.1:
-                raise RuntimeError("Die Audiospur ist leer.")
+                raise RuntimeError("error.audio_empty")
             duration = audio.size / media.SAMPLE_RATE
             self.db.update_job(job_id, duration=duration)
 
-            self._set_phase(job_id, "transcribing", "Transkription läuft …")
+            self._set_phase(job_id, "transcribing", "Transcribing …")
             self.trans_started = time.time()
             result = self._transcribe(job_id, audio, language, prompt)
             del audio
 
-            self._set_phase(job_id, "writing", "Dateien werden geschrieben …")
+            self._set_phase(job_id, "writing", "Writing files …")
             elapsed = time.time() - started
             meta = {
                 "source_file": src.name,
@@ -242,7 +242,7 @@ class Engine:
         except Cancelled:
             self.db.update_job(job_id, status="cancelled", phase=None, progress=0, elapsed=time.time() - started)
         except Exception as exc:
-            log.error("Fehler bei %s:\n%s", job["name"], traceback.format_exc())
+            log.error("Failed: %s\n%s", job["name"], traceback.format_exc())
             self.db.update_job(
                 job_id, status="failed", phase=None, error=str(exc) or exc.__class__.__name__,
                 elapsed=time.time() - started, finished_at=time.time(),
@@ -384,7 +384,7 @@ class Engine:
             except OSError:
                 continue
         if not entries:
-            raise RuntimeError("Noch keine fertigen Transkripte vorhanden.")
+            raise RuntimeError("error.no_transcripts")
         path = exporters.write_merged(Path(settings["output_dir"]) / MERGED_NAME, entries)
         self.last_merged = {"path": str(path), "count": len(entries), "time": time.time()}
         return self.last_merged

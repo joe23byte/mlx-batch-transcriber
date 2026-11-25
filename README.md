@@ -2,278 +2,285 @@
 
 # 🎙️ MLX Batch Transcriber
 
-**Ganze Videosammlungen per Knopfdruck transkribieren – lokal, offline und kostenlos auf deinem Mac.**
+**Transcribe entire video collections with one click – locally, offline and free on your Mac.**
 
-Whisper Large v3 Turbo auf der Apple-GPU, eine schlanke Weboberfläche mit Drag & Drop
-und eine Warteschlange, die auch einen Neustart übersteht.
+Whisper Large v3 Turbo on the Apple GPU, a lean web UI with drag & drop
+and a queue that survives restarts.
 
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-000000?logo=apple&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![MLX](https://img.shields.io/badge/MLX-Whisper-4f46e5)
 ![Offline](https://img.shields.io/badge/100%25-offline-059669)
-![Kosten](https://img.shields.io/badge/API--Kosten-0%20€-059669)
+![Cost](https://img.shields.io/badge/API%20cost-%240-059669)
+![UI](https://img.shields.io/badge/UI-English%20%7C%20Deutsch-0ea5e9)
 
-<img src="docs/screenshot-queue.png" alt="Weboberfläche mit Warteschlange, Fortschritt und Einstellungen" width="900">
+<img src="docs/screenshot-queue.png" alt="Web UI with queue, progress and settings" width="900">
 
 </div>
 
 ---
 
-## Inhalt
+## Contents
 
-- [Warum?](#warum)
-- [Funktionen](#funktionen)
-- [Schnellstart](#schnellstart)
-- [Mit Cursor einrichten](#mit-cursor-einrichten)
-- [Bedienung](#bedienung)
-- [Ausgabe](#ausgabe)
-- [Modelle & Geschwindigkeit](#modelle--geschwindigkeit)
-- [Datenschutz & Offline-Betrieb](#datenschutz--offline-betrieb)
-- [Wie es funktioniert](#wie-es-funktioniert)
-- [Funktionstest](#funktionstest)
-- [Fehlerbehebung](#fehlerbehebung)
+- [Why?](#why)
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Set up with Cursor](#set-up-with-cursor)
+- [Usage](#usage)
+- [Output](#output)
+- [Models & speed](#models--speed)
+- [Privacy & offline use](#privacy--offline-use)
+- [How it works](#how-it-works)
+- [Self test](#self-test)
+- [Troubleshooting](#troubleshooting)
 
-## Warum?
+## Why?
 
-Schulungsvideos, Interviews, Meetings, Podcasts – oft liegen Stunden an Material herum, das man durchsuchen,
-zitieren oder zusammenfassen möchte. Cloud-Dienste kosten pro Minute und die Daten verlassen das Haus.
-Dieses Tool nutzt stattdessen die GPU deines Macs über Apples [MLX](https://github.com/ml-explore/mlx)-Framework:
+Training videos, interviews, meetings, podcasts – hours of material you want to search, quote or summarize.
+Cloud services charge per minute and your data leaves the building. This tool uses your Mac's GPU instead,
+via Apple's [MLX](https://github.com/ml-explore/mlx) framework:
 
-- **Schnell:** rund **20× Echtzeit** – 4 Stunden Video in etwa 12 Minuten (gemessen auf einem M5 mit 24 GB).
-- **Privat:** Audio und Text bleiben auf deinem Rechner. Keine Cloud, kein Konto, keine API-Keys.
-- **Bequem:** Ordner auswählen, auf *Starten* klicken, fertig.
+- **Fast:** about **20× real time** – 4 hours of video in roughly 12 minutes (measured on an M5 with 24 GB).
+- **Private:** audio and text stay on your machine. No cloud, no account, no API keys.
+- **Simple:** pick a folder, click *Start*, done.
 
-## Funktionen
+## Features
 
 | | |
 |---|---|
-| 📂 **Dateien & Ordner** | Drag & Drop mehrerer Dateien, nativer Datei-/Ordnerdialog oder Pfad einfügen – optional inkl. Unterordnern |
-| 🎞️ **Formate** | MP4, MOV, MKV, WebM, MP3, WAV, M4A |
-| 🌍 **Sprache** | Automatische Erkennung oder manuelle Auswahl aus ~100 Sprachen |
-| 🧠 **Modelle** | Large v3 Turbo (Standard), Large v3, Medium, Small, Base, Tiny |
-| 📊 **Fortschritt** | Pro Datei und für die ganze Warteschlange, inkl. Laufzeit und geschätzter Restzeit |
-| 📝 **Export** | TXT (optional mit Minuten-Zeitmarken), SRT, VTT, JSON mit Zeitstempeln |
-| 📚 **Zusammenführen** | Alle Transkripte in einer Datei, Dateinamen als Überschriften |
-| ⏯️ **Steuerung** | Abbrechen, Fortsetzen, fehlgeschlagene wiederholen, einzelne Dateien neu transkribieren |
-| ♻️ **Intelligent** | Bereits transkribierte Dateien werden übersprungen |
-| 💾 **Persistent** | Warteschlange und Status liegen in SQLite – ein Neustart vernichtet keinen Fortschritt |
-| 👀 **Vorschau** | Transkript im Browser lesen (mit/ohne Zeitstempel) und mit einem Klick kopieren |
-| 🧹 **Qualität** | Filter gegen typische Whisper-Halluzinationen in Stillephasen, Ersetzungsregeln für Fachbegriffe |
+| 📂 **Files & folders** | Drag & drop multiple files, native file/folder dialog or paste a path – optionally including subfolders |
+| 🎞️ **Formats** | MP4, MOV, MKV, WebM, MP3, WAV, M4A |
+| 🌍 **Language** | Automatic detection or manual choice from ~100 languages |
+| 🧠 **Models** | Large v3 Turbo (default), Large v3, Medium, Small, Base, Tiny |
+| 📊 **Progress** | Per file and for the whole queue, including elapsed time and ETA |
+| 📝 **Export** | TXT (optionally with minute timestamps), SRT, VTT, JSON with timestamps |
+| 📚 **Merge** | All transcripts in one file, with file names as headings |
+| ⏯️ **Control** | Cancel, resume, retry failed files, re-transcribe single files |
+| ♻️ **Smart** | Files that are already transcribed are skipped |
+| 💾 **Persistent** | Queue and status live in SQLite – a restart never loses progress |
+| 👀 **Preview** | Read transcripts in the browser (with or without timestamps) and copy them with one click |
+| 🧹 **Quality** | Filters typical Whisper hallucinations during silence, replacement rules for domain terms |
+| 🌐 **Bilingual UI** | English (default) and German – switch with **EN / DE** in the top bar |
 
 <div align="center">
-<img src="docs/screenshot-preview.png" alt="Vorschau eines Transkripts mit Zeitstempeln" width="820">
+<img src="docs/screenshot-preview.png" alt="Transcript preview with timestamps" width="820">
 </div>
 
-## Schnellstart
+## Quick start
 
-**Voraussetzungen:** Mac mit Apple Silicon (M1 oder neuer), macOS 14+, ca. 5 GB freier Speicher
-(Python-Umgebung + Modell). Homebrew, FFmpeg oder eine passende Python-Version sind **nicht** nötig –
-das Setup bringt alles mit.
+**Requirements:** Mac with Apple Silicon (M1 or newer), macOS 14+, about 5 GB of free disk space
+(Python environment + model). Homebrew, FFmpeg or a specific Python version are **not** required –
+the setup brings everything it needs.
 
 ```bash
 git clone https://github.com/joe23byte/mlx-batch-transcriber.git
 cd mlx-batch-transcriber
-./setup.sh      # einmalig: Python 3.12, Abhängigkeiten, FFmpeg, Modell (~1,6 GB), Funktionstest
-./start.sh      # startet die App und öffnet http://127.0.0.1:8765 im Browser
+./setup.sh      # one-time: Python 3.12, dependencies, FFmpeg, model (~1.6 GB), self test
+./start.sh      # starts the app and opens http://127.0.0.1:8765 in your browser
 ```
 
-Alternativ im Finder einfach **`Transkription starten.command`** doppelklicken.
+Or simply double-click **`Start Transcriber.command`** in Finder.
 
 > [!TIP]
-> `./start.sh` führt beim allerersten Aufruf das Setup automatisch aus. Ein einziger Befehl genügt also.
+> On the very first run `./start.sh` runs the setup automatically, so a single command is enough.
 
-`setup.sh` installiert bei Bedarf [uv](https://docs.astral.sh/uv/), das eine eigene Python-3.12-Umgebung in
-`.venv/` anlegt – dein System-Python bleibt unberührt.
+If needed, `setup.sh` installs [uv](https://docs.astral.sh/uv/), which creates a dedicated Python 3.12
+environment in `.venv/` – your system Python stays untouched.
 
-| Befehl | Wirkung |
+| Command | Effect |
 |---|---|
-| `./setup.sh` | Komplettes Setup inkl. Modell-Download und Funktionstest |
-| `./setup.sh --skip-test` | Setup ohne Funktionstest |
-| `./setup.sh --no-model` | Modell erst bei der ersten Transkription laden |
-| `./start.sh --port 9000` | Anderen Port verwenden |
-| `./start.sh --no-browser` | Browser nicht automatisch öffnen |
+| `./setup.sh` | Full setup incl. model download and self test |
+| `./setup.sh --skip-test` | Setup without self test |
+| `./setup.sh --no-model` | Download the model on the first transcription instead |
+| `./start.sh --port 9000` | Use a different port |
+| `./start.sh --no-browser` | Don't open the browser automatically |
 
-## Mit Cursor einrichten
+## Set up with Cursor
 
-1. In Cursor **Clone Repository** wählen und `https://github.com/joe23byte/mlx-batch-transcriber` eingeben.
-2. Den Agent-Chat öffnen und eingeben:
+1. In Cursor choose **Clone Repository** and enter `https://github.com/joe23byte/mlx-batch-transcriber`.
+2. Open the agent chat and type:
 
    ```text
-   Richte dieses Projekt ein und starte es: führe ./setup.sh aus und danach ./start.sh.
+   Set up this project and start it: run ./setup.sh and then ./start.sh.
    ```
 
-Der Agent findet in [`AGENTS.md`](AGENTS.md) alle nötigen Infos zu Setup, Architektur und Tests.
+The agent finds everything it needs about setup, architecture and tests in [`AGENTS.md`](AGENTS.md).
 
-## Bedienung
+## Usage
 
-1. **Dateien hinzufügen**
-   - **„Dateien wählen …“ / „Ordner wählen …“** öffnen den macOS-Dialog. Die Dateien werden direkt am
-     Speicherort gelesen – ideal für große Videos.
-   - **Drag & Drop** auf die Fläche: Der Browser kopiert die Dateien zuerst in einen lokalen Arbeitsordner
-     (`data/uploads/`). Nach erfolgreicher Transkription wird die Kopie automatisch gelöscht.
-   - **Pfad einfügen**, z. B. `~/Videos/Schulung`.
-2. **Einstellungen prüfen** (rechte Spalte) – Modell, Sprache, Ausgabeordner, Formate.
-3. **Starten** klicken. Dateien werden nacheinander verarbeitet; das Modell wird nur einmal geladen.
-4. **Ergebnisse** öffnen: *Vorschau*, *Kopieren*, Downloads (TXT · SRT · VTT · JSON) oder 📁 im Finder zeigen.
+1. **Add files**
+   - **"Choose files …" / "Choose folder …"** open the macOS dialog. Files are read in place – ideal for
+     large videos.
+   - **Drag & drop** onto the drop zone: the browser first copies the files into a local working folder
+     (`data/uploads/`). The copy is deleted automatically after a successful transcription.
+   - **Paste a path**, e.g. `~/Videos/Training`.
+2. **Check the settings** (right column) – model, language, output folder, formats.
+3. Click **Start**. Files are processed one after another; the model is loaded only once.
+4. **Open the results:** *Preview*, *Copy*, downloads (TXT · SRT · VTT · JSON) or 📁 to reveal in Finder.
 
-**Tipps für bessere Ergebnisse**
+The interface language can be switched at any time with **EN / DE** in the top bar; the choice is remembered
+in the browser.
 
-- **Fachbegriffe / Kontext:** Namen und Fachwörter eintragen (z. B. `Kubernetes, Jira, Frau Dr. Meier`).
-  Whisper berücksichtigt sie vor allem am Anfang jeder Datei.
-- **Ersetzungen:** Für hartnäckige Fehler eine Regel pro Zeile, z. B. `Open AI => OpenAI`. Gilt für ganze
-  Wörter, unabhängig von Groß-/Kleinschreibung.
-- **↻ Neu transkribieren:** Wendet geänderte Einstellungen auf eine fertige Datei an.
+**Tips for better results**
 
-## Ausgabe
+- **Vocabulary / context:** enter names and technical terms (e.g. `Kubernetes, Jira, Dr. Miller`).
+  Whisper mainly takes them into account at the beginning of each file.
+- **Replacements:** for stubborn errors add one rule per line, e.g. `Open AI => OpenAI`. Rules match whole
+  words and ignore case.
+- **↻ Re-transcribe:** applies changed settings to a finished file.
 
-Für jede Datei entsteht im Ausgabeordner (Standard: `transkripte/`) eine Datei mit **dem Namen des
-Videos** – `Interview 01.mp4` → `Interview 01.txt`. Unterordner bleiben erhalten.
+## Output
 
-Mit aktivierten **Zeitmarken** gliedert sich das TXT in einen Absatz pro Minute:
+For every file the output folder (default: `transcripts/`) gets a file with **the name of the video** –
+`Interview 01.mp4` → `Interview 01.txt`. Subfolders are preserved.
+
+With **timestamps** enabled, the TXT is split into one paragraph per minute:
 
 ```text
-[00:00] Herzlich willkommen zu unserem Podcast. Heute sprechen wir darüber, wie man lange
-Videoaufnahmen schnell und vollständig offline in durchsuchbaren Text verwandelt. …
+[00:00] Welcome to our podcast. Today we talk about how to turn long video recordings into
+searchable text quickly and completely offline. …
 
-[01:02] Im zweiten Teil schauen wir uns an, welche Modelle es gibt und wie man mit Zeitstempeln
-gezielt in langen Aufnahmen navigiert. …
+[01:02] In the second part we look at the available models and how timestamps help you
+navigate long recordings. …
 ```
 
-| Format | Inhalt |
+| Format | Content |
 |---|---|
-| **TXT** | Fließtext, optional mit `[mm:ss]`-Marke pro Minute – immer erzeugt |
-| **SRT** | Untertitel für Videoplayer und Schnittprogramme |
-| **VTT** | Untertitel fürs Web (HTML5 `<track>`) |
-| **JSON** | Volltext, Segmente mit Start/Ende, Sprache, Modell, Verarbeitungsdauer |
+| **TXT** | Plain text, optionally with an `[mm:ss]` marker per minute – always written |
+| **SRT** | Subtitles for video players and editing software |
+| **VTT** | Subtitles for the web (HTML5 `<track>`) |
+| **JSON** | Full text, segments with start/end, language, model, processing time |
 
-In den Einstellungen lässt sich festlegen, welche Formate im Ausgabeordner landen. Alle Formate bleiben in der
-Oberfläche jederzeit herunterladbar.
+The settings control which formats are written to the output folder. All formats can always be downloaded
+from the UI. With **Merge** enabled, all transcripts are additionally combined into `All_Transcripts.txt`.
 
-## Modelle & Geschwindigkeit
+## Models & speed
 
-| Modell | Größe | Einsatz |
+| Model | Size | Use case |
 |---|---|---|
-| **Large v3 Turbo** *(Standard)* | 1,6 GB | Beste Balance aus Qualität und Tempo |
-| Large v3 | 3,1 GB | Maximale Genauigkeit, etwa halb so schnell |
-| Medium | 1,5 GB | Ältere Generation, solide |
-| Small / Base / Tiny | 480 / 150 / 75 MB | Sehr schnell, für Entwürfe oder schwache Macs |
+| **Large v3 Turbo** *(default)* | 1.6 GB | Best balance of quality and speed |
+| Large v3 | 3.1 GB | Maximum accuracy, about half as fast |
+| Medium | 1.5 GB | Previous generation, solid |
+| Small / Base / Tiny | 480 / 150 / 75 MB | Very fast, for drafts or older Macs |
 
-Modelle stammen von [mlx-community](https://huggingface.co/mlx-community) und werden beim ersten Gebrauch
-einmalig in den Hugging-Face-Cache (`~/.cache/huggingface`) geladen.
+Models come from [mlx-community](https://huggingface.co/mlx-community) and are downloaded once into the
+Hugging Face cache (`~/.cache/huggingface`) on first use.
 
-**Messwerte** (Apple M5, 24 GB RAM, Large v3 Turbo, deutsche Schulungsvideos):
+**Measurements** (Apple M5, 24 GB RAM, Large v3 Turbo, German training videos):
 
-| Material | Dauer | Verarbeitung |
+| Material | Duration | Processing |
 |---|---|---|
-| 14 Videos, 6,3 GB | 4 h 12 min | ≈ 12 min (≈ 21× Echtzeit) |
-| Einzelnes Video | 29 min | ≈ 60 s |
+| 14 videos, 6.3 GB | 4 h 12 min | ≈ 12 min (≈ 21× real time) |
+| Single video | 29 min | ≈ 60 s |
 
-## Datenschutz & Offline-Betrieb
+## Privacy & offline use
 
-- Keine externen APIs, keine Telemetrie, keine laufenden Kosten.
-- Der Server lauscht nur auf `127.0.0.1` und ist von außen nicht erreichbar.
-- Internet wird ausschließlich für das Setup und den **einmaligen** Modell-Download benötigt. Danach
-  funktioniert alles offline – Modelle werden strikt aus dem lokalen Cache geladen.
+- No external APIs, no telemetry, no running costs.
+- The server listens on `127.0.0.1` only and is not reachable from other machines.
+- Internet is needed only for the setup and the **one-time** model download. After that everything works
+  offline – models are loaded strictly from the local cache.
 
-## Wie es funktioniert
+## How it works
 
 ```mermaid
 flowchart LR
-    UI["Browser-Oberfläche<br/>(HTML/JS)"] <-->|REST, Polling| API["FastAPI-Server<br/>127.0.0.1"]
-    API <--> DB[("SQLite<br/>Warteschlange & Status")]
-    API --> W["Worker-Thread"]
-    W -->|"ffmpeg → 16 kHz WAV"| A["Audio (temporär)"]
+    UI["Browser UI<br/>(HTML/JS)"] <-->|REST, polling| API["FastAPI server<br/>127.0.0.1"]
+    API <--> DB[("SQLite<br/>queue & status")]
+    API --> W["Worker thread"]
+    W -->|"ffmpeg → 16 kHz WAV"| A["Audio (temporary)"]
     A --> M["MLX Whisper<br/>Apple GPU"]
     M --> F["TXT · SRT · VTT · JSON"]
 ```
 
-- **Ein Worker, ein Modell:** Ein einzelner Hintergrund-Thread lädt das Modell genau einmal und verarbeitet
-  die Dateien nacheinander – das hält den Speicherbedarf niedrig.
-- **Audio-Extraktion:** FFmpeg wandelt jede Datei in 16-kHz-Mono-WAV; die temporäre Datei wird direkt nach
-  dem Einlesen gelöscht. FFmpeg kommt als statisches arm64-Binary über
-  [`imageio-ffmpeg`](https://github.com/imageio/imageio-ffmpeg) mit (ein vorhandenes System-FFmpeg hat Vorrang).
-- **Fortschritt & Abbruch:** Der Fortschrittsbalken von `mlx_whisper` wird abgefangen; darüber laufen auch
-  Fortschrittsanzeige und sofortiges Abbrechen.
-- **Robustheit:** `condition_on_previous_text` ist deaktiviert, um Halluzinations-Kaskaden nach Stille zu
-  vermeiden; bekannte Phantom-Phrasen (z. B. „Untertitel im Auftrag des ZDF“) werden herausgefiltert.
-- **Persistenz:** Jeder Statuswechsel landet sofort in SQLite (`data/state.db`). Beim Start werden
-  unterbrochene Dateien wieder in die Warteschlange gestellt.
+- **One worker, one model:** a single background thread loads the model exactly once and processes the files
+  sequentially – this keeps memory usage low.
+- **Audio extraction:** FFmpeg converts every file to 16 kHz mono WAV; the temporary file is deleted right
+  after it has been read. FFmpeg ships as a static arm64 binary via
+  [`imageio-ffmpeg`](https://github.com/imageio/imageio-ffmpeg) (an existing system FFmpeg takes precedence).
+- **Progress & cancellation:** the progress bar of `mlx_whisper` is intercepted; it drives both the progress
+  display and instant cancellation.
+- **Robustness:** `condition_on_previous_text` is disabled to avoid hallucination cascades after silence;
+  well-known phantom phrases (e.g. "Thanks for watching", TV subtitle credits) are filtered out.
+- **Persistence:** every status change is written to SQLite (`data/state.db`) immediately. On startup,
+  interrupted files are put back into the queue.
+- **Translations:** all UI texts live in [`app/static/i18n.js`](app/static/i18n.js). The server only returns
+  language-neutral error keys (e.g. `error.corrupt`), which the browser translates.
 
 <details>
-<summary><b>Projektstruktur</b></summary>
+<summary><b>Project structure</b></summary>
 
 ```text
 .
-├── setup.sh                     # Einmaliges Setup
-├── start.sh                     # Start (führt bei Bedarf das Setup aus)
-├── Transkription starten.command  # Doppelklick-Starter für den Finder
-├── selftest.py                  # End-to-End-Funktionstest
+├── setup.sh                     # One-time setup
+├── start.sh                     # Start (runs the setup if needed)
+├── Start Transcriber.command    # Double-click launcher for Finder
+├── selftest.py                  # End-to-end self test
 ├── requirements.txt
 ├── app/
-│   ├── __main__.py              # Launcher: Port, Browser, Erkennung laufender Instanz
-│   ├── server.py                # FastAPI-Endpunkte
-│   ├── engine.py                # Worker, Modell, Fortschritt, ETA
-│   ├── jobs.py                  # Dateien einreihen, Überspringen, Uploads
-│   ├── media.py                 # FFmpeg: Dauer, Audio-Extraktion
-│   ├── exporters.py             # TXT/SRT/VTT/JSON, Filter, Ersetzungen
-│   ├── db.py                    # SQLite (thread-sicher)
-│   ├── config.py                # Pfade, Modelle, Standardeinstellungen
-│   └── static/                  # Oberfläche (HTML, CSS, JS – ohne Build-Schritt)
-└── data/                        # Laufzeitdaten, nicht im Git
+│   ├── __main__.py              # Launcher: port, browser, detects a running instance
+│   ├── server.py                # FastAPI endpoints
+│   ├── engine.py                # Worker, model, progress, ETA
+│   ├── jobs.py                  # Queueing files, skipping, uploads
+│   ├── media.py                 # FFmpeg: duration, audio extraction
+│   ├── exporters.py             # TXT/SRT/VTT/JSON, filters, replacements
+│   ├── db.py                    # SQLite (thread-safe)
+│   ├── config.py                # Paths, models, default settings
+│   └── static/                  # UI (HTML, CSS, JS, translations – no build step)
+└── data/                        # Runtime data, not in git
 ```
 
 </details>
 
-## Funktionstest
+## Self test
 
 ```bash
 .venv/bin/python selftest.py
 ```
 
-Der Test erzeugt per macOS-Sprachausgabe eigene Testmedien, startet einen isolierten Server in einem
-temporären Verzeichnis und prüft rund 40 Punkte – u. a. Spracherkennung, alle Exportformate, Überspringen,
-Abbrechen/Fortsetzen, defekte Dateien, Uploads, Zusammenführen und die Wiederaufnahme nach einem harten
-Neustart mitten in der Verarbeitung. Dein echter Arbeitsstand bleibt unberührt.
+The test generates its own media with macOS text-to-speech, starts an isolated server in a temporary
+directory and checks about 50 things – including language detection, all export formats, skipping,
+cancel/resume, broken files, uploads, merging, complete EN/DE translations and recovery after a hard restart
+in the middle of processing. Your real working state is not touched.
 
-## Fehlerbehebung
+## Troubleshooting
 
 <details>
-<summary><b>„MLX benötigt einen Mac mit Apple Silicon“</b></summary>
+<summary><b>"MLX requires a Mac with Apple Silicon"</b></summary>
 
-MLX läuft nur auf M-Chips. Intel-Macs werden nicht unterstützt.
+MLX only runs on M-series chips. Intel Macs are not supported.
 </details>
 
 <details>
-<summary><b>Der Ordner-Dialog erscheint nicht</b></summary>
+<summary><b>The folder dialog doesn't appear</b></summary>
 
-Er öffnet sich manchmal hinter dem Browserfenster – kurz mit <kbd>⌘</kbd> + <kbd>Tab</kbd> wechseln.
-Alternativ den Pfad ins Eingabefeld einfügen oder Dateien per Drag & Drop ziehen.
+It sometimes opens behind the browser window – switch with <kbd>⌘</kbd> + <kbd>Tab</kbd>.
+Alternatively paste the path into the input field or drag & drop the files.
 </details>
 
 <details>
-<summary><b>Port 8765 ist belegt</b></summary>
+<summary><b>Port 8765 is in use</b></summary>
 
-`start.sh` weicht automatisch auf den nächsten freien Port aus. Läuft die App bereits, öffnet ein erneuter
-Aufruf einfach den Browser.
+`start.sh` automatically falls back to the next free port. If the app is already running, starting it again
+just opens the browser.
 </details>
 
 <details>
-<summary><b>Seltsame Sätze in stillen Passagen</b></summary>
+<summary><b>Strange sentences in silent passages</b></summary>
 
-Whisper „erfindet“ in langen Pausen manchmal Text. Die bekanntesten Phrasen werden gefiltert. Weitere
-Fehler lassen sich über **Ersetzungen** korrigieren oder per ↻ mit einem anderen Modell neu transkribieren.
+Whisper sometimes "invents" text during long pauses. The most common phrases are filtered. Remaining errors
+can be fixed with **Replacements**, or re-transcribe with ↻ using a different model.
 </details>
 
 <details>
-<summary><b>Arbeitsstand zurücksetzen</b></summary>
+<summary><b>Reset the working state</b></summary>
 
-App beenden und den Ordner `data/` löschen. Transkripte im Ausgabeordner bleiben erhalten.
+Quit the app and delete the `data/` folder. Transcripts in the output folder are kept.
 </details>
 
 ---
 
 <div align="center">
-<sub>Gebaut mit <a href="https://github.com/ml-explore/mlx-examples/tree/main/whisper">MLX Whisper</a>,
-<a href="https://fastapi.tiangolo.com">FastAPI</a> und
+<sub>Built with <a href="https://github.com/ml-explore/mlx-examples/tree/main/whisper">MLX Whisper</a>,
+<a href="https://fastapi.tiangolo.com">FastAPI</a> and
 <a href="https://ffmpeg.org">FFmpeg</a>.</sub>
 </div>

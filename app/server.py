@@ -16,16 +16,13 @@ from pydantic import BaseModel
 from . import __version__, exporters, jobs, media
 from .config import DEFAULT_SETTINGS, MEDIA_EXTENSIONS, MODEL_IDS, MODELS, STATIC_DIR, TMP_DIR, UPLOAD_DIR
 from .db import Database
-from .engine import Engine, local_model_path, result_path
+from .engine import MERGED_NAME, Engine, local_model_path, result_path
 
-log = logging.getLogger("transkription")
+log = logging.getLogger("transcriber")
 
-LANG_DE = {
-    "de": "Deutsch", "en": "Englisch", "fr": "Französisch", "es": "Spanisch", "it": "Italienisch",
-    "nl": "Niederländisch", "pl": "Polnisch", "tr": "Türkisch", "ru": "Russisch", "uk": "Ukrainisch",
-    "pt": "Portugiesisch", "ar": "Arabisch", "zh": "Chinesisch", "ja": "Japanisch", "ko": "Koreanisch",
-    "sv": "Schwedisch", "da": "Dänisch", "no": "Norwegisch", "fi": "Finnisch", "cs": "Tschechisch",
-    "el": "Griechisch", "hu": "Ungarisch", "ro": "Rumänisch", "hr": "Kroatisch", "sr": "Serbisch",
+DIALOG_TEXT = {
+    "en": {"files": "Choose video or audio files", "folder": "Choose a folder with videos", "output": "Choose output folder"},
+    "de": {"files": "Video- oder Audiodateien wählen", "folder": "Ordner mit Videos wählen", "output": "Ausgabeordner wählen"},
 }
 
 db = Database()
@@ -43,7 +40,7 @@ async def lifespan(_app):
     engine.cancel()
 
 
-app = FastAPI(title="Transkription", version=__version__, lifespan=lifespan)
+app = FastAPI(title="MLX Batch Transcriber", version=__version__, lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -86,6 +83,7 @@ class UploadListIn(BaseModel):
 
 class PickIn(BaseModel):
     kind: str = "folder"
+    lang: str = "en"
 
 
 class OpenIn(BaseModel):
@@ -97,20 +95,19 @@ class OpenIn(BaseModel):
 
 @app.get("/api/ping")
 def ping():
-    return {"app": "transkription", "version": __version__}
+    return {"app": "mlx-batch-transcriber", "version": __version__}
 
 
 @app.get("/api/meta")
 def meta():
     from mlx_whisper.tokenizer import LANGUAGES
 
-    langs = [{"code": c, "name": LANG_DE.get(c, n.title())} for c, n in LANGUAGES.items()]
-    langs.sort(key=lambda l: (l["code"] not in ("de", "en"), l["code"] != "de", l["name"]))
+    langs = [{"code": c, "name": n.title()} for c, n in LANGUAGES.items()]
     try:
         import mlx.core as mx
         device = str(mx.default_device())
     except Exception:
-        device = "unbekannt"
+        device = "unknown"
     return {
         "version": __version__,
         "models": [{**m, "downloaded": local_model_path(m["id"]) is not None} for m in MODELS],
@@ -131,15 +128,15 @@ def get_settings():
 def put_settings(body: SettingsIn):
     data = body.model_dump(exclude_none=True)
     if "model" in data and data["model"] not in MODEL_IDS:
-        raise HTTPException(400, "Unbekanntes Modell")
+        raise HTTPException(400, "error.unknown_model")
     if "output_dir" in data:
         out = Path(data["output_dir"]).expanduser()
         if not out.is_absolute():
-            raise HTTPException(400, "Bitte einen absoluten Pfad angeben")
+            raise HTTPException(400, "error.path_not_absolute")
         try:
             out.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            raise HTTPException(400, f"Ausgabeordner nicht beschreibbar: {exc}")
+            raise HTTPException(400, f"error.output_not_writable: {exc}")
         data["output_dir"] = str(out)
     if "formats" in data:
         data["formats"] = [f for f in exporters.FORMATS if f in data["formats"] or f == "txt"]
@@ -188,7 +185,7 @@ def delete_job(job_id: int):
     if not job:
         raise HTTPException(404)
     if job["status"] == "running":
-        raise HTTPException(409, "Die Datei wird gerade verarbeitet")
+        raise HTTPException(409, "error.job_running")
     db.delete_job(job_id)
     if job["is_upload"] and job["status"] != "done":
         engine._delete_upload(Path(job["source_path"]))
@@ -224,16 +221,17 @@ def _osascript(lines):
     if proc.returncode != 0:
         if "-128" in proc.stderr:
             return None
-        raise HTTPException(500, proc.stderr.strip() or "Dialog fehlgeschlagen")
+        raise HTTPException(500, proc.stderr.strip() or "error.dialog_failed")
     return proc.stdout
 
 
 @app.post("/api/pick")
 def pick(body: PickIn):
+    text = DIALOG_TEXT.get(body.lang, DIALOG_TEXT["en"])
     if body.kind == "files":
         out = _osascript([
             "activate",
-            'set fs to choose file with prompt "Video- oder Audiodateien wählen" with multiple selections allowed',
+            f'set fs to choose file with prompt "{text["files"]}" with multiple selections allowed',
             'set out to ""',
             "repeat with f in fs",
             "set out to out & POSIX path of f & linefeed",
@@ -241,7 +239,7 @@ def pick(body: PickIn):
             "return out",
         ])
     else:
-        prompt = "Ausgabeordner wählen" if body.kind == "output" else "Ordner mit Videos wählen"
+        prompt = text["output"] if body.kind == "output" else text["folder"]
         out = _osascript(["activate", f'return POSIX path of (choose folder with prompt "{prompt}")'])
     if out is None:
         return {"paths": []}
@@ -262,7 +260,7 @@ def open_in_finder(body: OpenIn):
         if target.exists():
             subprocess.run(["open", "-R", str(target)])
             return {"ok": True}
-        raise HTTPException(404, "Datei nicht gefunden")
+        raise HTTPException(404, "error.file_not_found")
     out = Path(settings["output_dir"])
     out.mkdir(parents=True, exist_ok=True)
     subprocess.run(["open", str(out)])
@@ -297,9 +295,9 @@ async def upload(request: Request, path: str, size: int, mtime: float):
     try:
         target = jobs.upload_target(path)
     except ValueError:
-        raise HTTPException(400, "Ungültiger Dateiname")
+        raise HTTPException(400, "error.invalid_name")
     if not media.is_media(target):
-        raise HTTPException(400, "Dateityp nicht unterstützt")
+        raise HTTPException(400, "error.unsupported_type")
     target.parent.mkdir(parents=True, exist_ok=True)
     part = target.with_name(target.name + ".part")
     written = 0
@@ -313,7 +311,7 @@ async def upload(request: Request, path: str, size: int, mtime: float):
         raise
     if written != size:
         part.unlink(missing_ok=True)
-        raise HTTPException(400, f"Upload unvollständig ({written} von {size} Bytes)")
+        raise HTTPException(400, f"error.upload_incomplete: {written}/{size} bytes")
     os.replace(part, target)
     os.utime(target, (mtime, mtime))
     return {"ok": True}
@@ -362,7 +360,7 @@ def transcript(job_id: int):
     except OSError:
         text = exporters.render(doc, "txt", db.get_settings()["txt_timestamps"]) if doc else None
     if text is None:
-        raise HTTPException(404, "Transkript nicht gefunden")
+        raise HTTPException(404, "error.transcript_not_found")
     return {"name": job["name"], "text": text, "segments": (doc or {}).get("segments", []),
             "language": (doc or {}).get("language") or job["detected_language"]}
 
@@ -377,7 +375,7 @@ def download(job_id: int, fmt: str):
         return FileResponse(paths[fmt], media_type=media_type, filename=paths[fmt].name)
     doc = _load_doc(job_id, paths)
     if not doc:
-        raise HTTPException(404, "Datei nicht gefunden")
+        raise HTTPException(404, "error.file_not_found")
     content = exporters.render(doc, fmt, db.get_settings()["txt_timestamps"])
     disposition = f"attachment; filename*=UTF-8''{quote(paths[fmt].name)}"
     return Response(content, media_type=media_type, headers={"Content-Disposition": disposition})
@@ -394,9 +392,9 @@ def merge():
 @app.get("/api/merged")
 def merged_download():
     info = engine.last_merged
-    path = Path(info["path"]) if info else Path(db.get_settings()["output_dir"]) / "Alle_Transkripte.txt"
+    path = Path(info["path"]) if info else Path(db.get_settings()["output_dir"]) / MERGED_NAME
     if not path.exists():
-        raise HTTPException(404, "Noch keine zusammengeführte Datei vorhanden")
+        raise HTTPException(404, "error.no_merged")
     return FileResponse(path, media_type="text/plain; charset=utf-8", filename=path.name)
 
 

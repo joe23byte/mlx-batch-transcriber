@@ -24,6 +24,7 @@ _HALLUCINATION_RE = re.compile(
 _FILLERS = {
     "vielen dank", "danke", "danke schön", "dankeschön", "tschüss", "auf wiedersehen",
     "auf wiederhören", "bis zum nächsten mal", "bis bald", "untertitel", "thank you",
+    "thanks", "thank you very much", "bye", "goodbye", "see you next time",
 }
 
 

@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Local batch transcription app for macOS on Apple Silicon (MLX Whisper + FastAPI + vanilla JS UI).
-The user-facing UI and README are German; keep new UI strings German.
+Code, docs and logs are English. The UI is bilingual (English default, German).
 
 ## Setup and run
 
@@ -16,8 +16,18 @@ The user-facing UI and README are German; keep new UI strings German.
 ## Tests
 
 - `.venv/bin/python selftest.py` runs the end-to-end test (~3 minutes). It generates speech with macOS
-  `say`, starts an isolated server with `TRANSKRIPTION_DATA_DIR` pointing to a temp dir and exercises the
+  `say`, starts an isolated server with `TRANSCRIBER_DATA_DIR` pointing to a temp dir and exercises the
   HTTP API. It never touches the real `data/` directory. Run it after any change to `app/`.
+- The self test also verifies that the EN and DE dictionaries have identical keys and that every
+  `error.*` key used in `app/*.py` is translated.
+
+## Translations
+
+- All UI strings live in `app/static/i18n.js` (`I18N.en` and `I18N.de`). Add every new key to both.
+- Static HTML uses `data-i18n`, `data-i18n-placeholder` and `data-i18n-title`; JS uses `t(key, params)`.
+- The server never returns user-facing prose. Errors are keys like `"error.corrupt"` or
+  `"error.ffmpeg: <detail>"`; the browser renders them with `translateMessage()`.
+- The selected language is stored in `localStorage["ui-lang"]` and sent to `/api/pick` for native dialogs.
 
 ## Architecture notes
 
@@ -28,4 +38,4 @@ The user-facing UI and README are German; keep new UI strings German.
 - `app/exporters.py`: TXT is written last and marks a job as complete. The full result is also stored in
   `data/results/<job_id>.json` so every format stays downloadable regardless of the selected formats.
 - Models are resolved with `snapshot_download(local_files_only=True)` first so the app works offline.
-- `data/` (state, uploads, temp audio) and `transkripte/` (default output) are git-ignored runtime folders.
+- `data/` (state, uploads, temp audio) and `transcripts/` (default output) are git-ignored runtime folders.

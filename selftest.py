@@ -1,12 +1,13 @@
-"""End-to-end Funktionstest: startet den Server in einem isolierten Temp-Verzeichnis und
-prüft Hinzufügen, Transkription, Exporte, Überspringen, Abbrechen/Fortsetzen, Fehler/Wiederholen,
-Upload, Zusammenführen und Wiederaufnahme nach einem Neustart.
+"""End-to-end self test: starts the server in an isolated temp directory and checks adding files,
+transcription, exports, skipping, cancel/resume, failures/retry, uploads, merging, recovery after a
+hard restart and the UI translations.
 
-    .venv/bin/python selftest.py [--model mlx-community/whisper-tiny-mlx]
+    .venv/bin/python selftest.py [--model mlx-community/whisper-tiny-mlx] [--keep]
 """
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import socket
@@ -22,12 +23,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
+from app.engine import MERGED_NAME  # noqa: E402
 from app.media import ffmpeg_path  # noqa: E402
 
-SPEECH = (
-    "Guten Tag und herzlich willkommen. Dies ist ein Funktionstest für die lokale Transkription. "
-    "Die Verarbeitung erfolgt vollständig auf dem Mac, ohne Cloud und ohne laufende Kosten."
-)
+APP_ID = "mlx-batch-transcriber"
+SPEECH = {
+    "de": (
+        "Guten Tag und herzlich willkommen. Dies ist ein Funktionstest für die lokale Transkription. "
+        "Die Verarbeitung erfolgt vollständig auf dem Mac, ohne Cloud und ohne laufende Kosten.",
+        ("funktionstest", "transkription"),
+    ),
+    "en": (
+        "Hello and welcome. This is a self test for the local transcription tool. "
+        "Everything runs entirely on the Mac, without any cloud and without running costs.",
+        ("test", "transcription"),
+    ),
+}
 
 
 class Fail(Exception):
@@ -45,24 +56,36 @@ def run(cmd):
 
 
 def make_media(d):
+    """Creates test media with macOS text-to-speech. Prefers a German voice to test auto-detection
+    of a non-English language; falls back to English if none is installed."""
+    voices = subprocess.run(["say", "-v", "?"], capture_output=True, text=True).stdout.splitlines()
+    german = next((m.group(1) for v in voices if (m := re.match(r"(.+?)\s+de_DE\s", v))), None)
+    lang = "de" if german else "en"
+    text, keywords = SPEECH[lang]
     ff = ffmpeg_path()
     aiff = d / "speech.aiff"
-    voice = []
-    voices = subprocess.run(["say", "-v", "?"], capture_output=True, text=True).stdout
-    for name in ("Anna", "Petra", "Markus", "Yannick"):
-        if any(line.startswith(name + " ") for line in voices.splitlines()):
-            voice = ["-v", name]
-            break
-    run(["say", *voice, "-o", str(aiff), SPEECH])
-    media = d / "medien"
-    (media / "unterordner").mkdir(parents=True)
+    run(["say", *(["-v", german] if german else []), "-o", str(aiff), text])
+    media = d / "media"
+    (media / "subfolder").mkdir(parents=True)
     run([ff, "-y", "-f", "lavfi", "-i", "color=c=black:s=320x240:r=10", "-i", str(aiff), "-shortest",
          "-c:v", "mpeg4", "-c:a", "aac", str(media / "Testvideo.mp4")])
-    run([ff, "-y", "-i", str(aiff), "-c:a", "aac", str(media / "unterordner" / "Testaudio.m4a")])
-    run([ff, "-y", "-stream_loop", "29", "-i", str(aiff), "-ar", "16000", "-ac", "1", str(d / "Lang.wav")])
-    (media / "kaputt.mov").write_bytes(os.urandom(4096))
-    (media / "notiz.txt").write_text("keine Mediendatei")
-    return media
+    run([ff, "-y", "-i", str(aiff), "-c:a", "aac", str(media / "subfolder" / "Testaudio.m4a")])
+    run([ff, "-y", "-stream_loop", "29", "-i", str(aiff), "-ar", "16000", "-ac", "1", str(d / "Long.wav")])
+    (media / "broken.mov").write_bytes(os.urandom(4096))
+    (media / "notes.txt").write_text("not a media file")
+    return media, lang, keywords
+
+
+def check_translations():
+    src = (ROOT / "app" / "static" / "i18n.js").read_text(encoding="utf-8")
+    blocks = dict(re.findall(r"\n  (en|de): \{(.*?)\n  \},", src, re.S))
+    keys = {lang: set(re.findall(r'^\s*"([\w.]+)":', body, re.M)) for lang, body in blocks.items()}
+    check(set(keys) == {"en", "de"} and keys["en"] == keys["de"], f"UI translations complete ({len(keys.get('en', ()))} keys in EN and DE)")
+    used = set()
+    for py in (ROOT / "app").glob("*.py"):
+        used |= set(re.findall(r'"(error\.[a-z_]+)', py.read_text(encoding="utf-8")))
+    missing = used - keys["en"]
+    check(not missing, f"All server error keys are translated ({len(used)} keys){' – missing: ' + ', '.join(sorted(missing)) if missing else ''}")
 
 
 class Server:
@@ -74,7 +97,7 @@ class Server:
         self.proc = None
 
     def start(self):
-        env = {**os.environ, "TRANSKRIPTION_DATA_DIR": str(self.data_dir)}
+        env = {**os.environ, "TRANSCRIBER_DATA_DIR": str(self.data_dir)}
         self.log = open(self.data_dir / "server.log", "ab")
         self.proc = subprocess.Popen(
             [sys.executable, "-m", "app", "--port", str(self.port), "--no-browser"],
@@ -82,11 +105,11 @@ class Server:
         )
         for _ in range(240):
             try:
-                if self.get("/api/ping")["app"] == "transkription":
+                if self.get("/api/ping")["app"] == APP_ID:
                     return
             except Exception:
                 time.sleep(0.25)
-        raise Fail("Server startet nicht")
+        raise Fail("Server does not start")
 
     def kill(self):
         if self.proc and self.proc.poll() is None:
@@ -128,7 +151,7 @@ class Server:
             if not s["worker"]["active"] and not s["counts"].get("running"):
                 return s
             time.sleep(0.3)
-        raise Fail("Zeitüberschreitung bei der Verarbeitung")
+        raise Fail("Processing timed out")
 
     def job(self, name_part):
         return next(j for j in self.state()["jobs"] if name_part in j["name"])
@@ -137,34 +160,38 @@ class Server:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="mlx-community/whisper-large-v3-turbo")
-    ap.add_argument("--keep", action="store_true", help="Temp-Verzeichnis nicht löschen")
+    ap.add_argument("--keep", action="store_true", help="keep the temp directory")
     args = ap.parse_args()
 
-    tmp = Path(tempfile.mkdtemp(prefix="transkription-test-"))
-    data, out = tmp / "data", tmp / "ausgabe"
+    tmp = Path(tempfile.mkdtemp(prefix="transcriber-test-"))
+    data, out = tmp / "data", tmp / "output"
     data.mkdir()
     srv = Server(data)
     ok = False
     try:
-        print("Testmedien erzeugen …")
-        media = make_media(tmp)
+        print("Checking translations …")
+        check_translations()
 
-        print("Server starten …")
+        print("Creating test media …")
+        media, lang, keywords = make_media(tmp)
+
+        print("Starting server …")
         srv.start()
-        check(b"Transkription" in srv.get("/"), "Weboberfläche wird ausgeliefert")
+        check(b"Transcriber" in srv.get("/") and b"i18n.js" in srv.get("/"), "Web UI is served")
         meta = srv.get("/api/meta")
-        check("gpu" in meta["device"], f"MLX nutzt die GPU ({meta['device']})")
-        check(len(meta["languages"]) > 90 and meta["languages"][0]["code"] == "de", "Sprachliste verfügbar")
+        check("gpu" in meta["device"], f"MLX uses the GPU ({meta['device']})")
+        codes = {l["code"] for l in meta["languages"]}
+        check(len(codes) > 90 and {"en", "de"} <= codes, "Language list available")
         srv.req("PUT", "/api/settings", body={"output_dir": str(out), "model": args.model, "language": "auto", "merge": True})
 
-        print("Dateien hinzufügen …")
+        print("Adding files …")
         s = srv.post("/api/jobs/add-paths", {"paths": [str(media)], "recursive": False})
-        check(s["added"] == 2, "Nicht-rekursiv: 2 Mediendateien (TXT ignoriert, Unterordner ausgelassen)")
+        check(s["added"] == 2, "Non-recursive: 2 media files (TXT ignored, subfolder skipped)")
         s = srv.post("/api/jobs/add-paths", {"paths": [str(media)], "recursive": True})
-        check(s["added"] == 1 and s["queued"] == 2, "Rekursiv: Datei aus Unterordner zusätzlich gefunden")
-        check(srv.job("Testvideo")["duration"] > 5, "Mediendauer per FFmpeg ermittelt")
+        check(s["added"] == 1 and s["queued"] == 2, "Recursive: file in subfolder found as well")
+        check(srv.job("Testvideo")["duration"] > 5, "Media duration detected via FFmpeg")
 
-        print("Transkription (inkl. Modell laden) …")
+        print("Transcribing (incl. model loading) …")
         t0 = time.time()
         srv.post("/api/queue/start")
         stop_hammer = threading.Event()
@@ -182,97 +209,96 @@ def main():
             h.start()
         st = srv.wait_idle()
         stop_hammer.set()
-        print(f"    Dauer: {time.time() - t0:.1f} s")
-        check(st["worker"]["loaded_model"] == args.model, "Modell geladen und im Speicher gehalten")
-        v, a, k = srv.job("Testvideo"), srv.job("Testaudio"), srv.job("kaputt")
-        check(v["status"] == "done" and a["status"] == "done", "MP4 und M4A erfolgreich transkribiert")
-        check(v["detected_language"] == "de", "Sprache automatisch als Deutsch erkannt")
-        check(k["status"] == "failed" and k["error"], f"Defekte Datei als fehlgeschlagen markiert ({k['error'][:60]} …)")
+        print(f"    Duration: {time.time() - t0:.1f} s")
+        check(st["worker"]["loaded_model"] == args.model, "Model loaded and kept in memory")
+        v, a, k = srv.job("Testvideo"), srv.job("Testaudio"), srv.job("broken")
+        check(v["status"] == "done" and a["status"] == "done", "MP4 and M4A transcribed")
+        check(v["detected_language"] == lang, f"Language auto-detected as '{lang}'")
+        check(k["status"] == "failed" and k["error"] == "error.corrupt", "Broken file marked as failed (error.corrupt)")
 
-        base = out
-        for f in ("Testvideo.txt", "Testvideo.srt", "Testvideo.vtt", "Testvideo.json", "unterordner/Testaudio.txt"):
-            check((base / f).exists(), f"Export vorhanden: {f}")
-        txt = (base / "Testvideo.txt").read_text().lower()
-        check("funktionstest" in txt and "transkription" in txt, "Transkript enthält den gesprochenen Text")
-        check(txt.startswith("[00:00] "), "TXT mit Minuten-Zeitmarke")
-        srt = (base / "Testvideo.srt").read_text()
-        check(srt.startswith("1\n00:00:0") and " --> " in srt, "SRT-Format korrekt")
-        check((base / "Testvideo.vtt").read_text().startswith("WEBVTT"), "VTT-Format korrekt")
-        doc = json.loads((base / "Testvideo.json").read_text())
-        check(doc["segments"] and {"start", "end", "text"} <= set(doc["segments"][0]), "JSON mit Zeitstempeln")
-        check(not list((data / "tmp").glob("*.wav")), "Temporäre Audiodateien gelöscht")
-        merged = out / "Alle_Transkripte.txt"
-        check(merged.exists() and "\nTestvideo.mp4\n" in merged.read_text(), "Zusammenführung mit Dateinamen als Überschrift")
+        for f in ("Testvideo.txt", "Testvideo.srt", "Testvideo.vtt", "Testvideo.json", "subfolder/Testaudio.txt"):
+            check((out / f).exists(), f"Export exists: {f}")
+        txt = (out / "Testvideo.txt").read_text().lower()
+        check(all(kw in txt for kw in keywords), "Transcript contains the spoken text")
+        check(txt.startswith("[00:00] "), "TXT has minute timestamps")
+        srt = (out / "Testvideo.srt").read_text()
+        check(srt.startswith("1\n00:00:0") and " --> " in srt, "SRT format correct")
+        check((out / "Testvideo.vtt").read_text().startswith("WEBVTT"), "VTT format correct")
+        doc = json.loads((out / "Testvideo.json").read_text())
+        check(doc["segments"] and {"start", "end", "text"} <= set(doc["segments"][0]), "JSON with timestamps")
+        check(not list((data / "tmp").glob("*.wav")), "Temporary audio files deleted")
+        merged = out / MERGED_NAME
+        check(merged.exists() and "\nTestvideo.mp4\n" in merged.read_text(), "Merged file uses file names as headings")
 
         t = srv.get(f"/api/jobs/{v['id']}/transcript")
-        check("Funktionstest".lower() in t["text"].lower(), "Vorschau-API liefert Transkript")
-        check(b"-->" in srv.get(f"/api/jobs/{v['id']}/download/srt"), "Download-API liefert SRT")
+        check(keywords[0] in t["text"].lower(), "Preview API returns the transcript")
+        check(b"-->" in srv.get(f"/api/jobs/{v['id']}/download/srt"), "Download API returns SRT")
 
-        print("Überspringen / Wiederholen …")
+        print("Skipping / retrying …")
         s = srv.post("/api/jobs/add-paths", {"paths": [str(media)], "recursive": True})
-        check(s["skipped"] == 2, "Bereits transkribierte Dateien werden übersprungen")
+        check(s["skipped"] == 2, "Already transcribed files are skipped")
         srv.post("/api/jobs/retry-failed")
         srv.wait_idle()
-        check(srv.job("kaputt")["status"] == "failed", "Fehlgeschlagene Datei erneut versucht")
-        srv.req("DELETE", f"/api/jobs/{srv.job('kaputt')['id']}")
+        check(srv.job("broken")["status"] == "failed", "Failed file was retried")
+        srv.req("DELETE", f"/api/jobs/{srv.job('broken')['id']}")
 
-        print("Abbrechen und Fortsetzen …")
+        print("Cancel and resume …")
         srv.req("PUT", "/api/settings", body={"formats": ["txt"]})
-        srv.post("/api/jobs/add-paths", {"paths": [str(tmp / "Lang.wav")]})
+        srv.post("/api/jobs/add-paths", {"paths": [str(tmp / "Long.wav")]})
         srv.post("/api/queue/start")
         t0 = time.time()
         while time.time() - t0 < 120:
-            j = srv.job("Lang.wav")
+            j = srv.job("Long.wav")
             if j["status"] == "running" and j["phase"] == "transcribing" and j["progress"] > 0:
                 break
             time.sleep(0.05)
         srv.post("/api/queue/cancel")
         srv.wait_idle()
-        check(srv.job("Lang.wav")["status"] == "cancelled", "Laufende Transkription abgebrochen")
+        check(srv.job("Long.wav")["status"] == "cancelled", "Running transcription cancelled")
         srv.post("/api/queue/start")
         srv.wait_idle()
-        check(srv.job("Lang.wav")["status"] == "done", "Nach Fortsetzen fertig transkribiert")
-        lang_txt = (out / "Lang.txt").read_text()
-        check(not (out / "Lang.srt").exists() and not (out / "Lang.json").exists(), "Nur TXT: keine weiteren Dateien im Ausgabeordner")
-        check(lang_txt.count("\n\n[") >= 3 and "[01:" in lang_txt, "Langes TXT in Minuten-Absätze gegliedert")
-        lid = srv.job("Lang.wav")["id"]
-        check(b"-->" in srv.get(f"/api/jobs/{lid}/download/srt"), "SRT trotzdem herunterladbar (bei Bedarf erzeugt)")
+        check(srv.job("Long.wav")["status"] == "done", "Finished after resuming")
+        long_txt = (out / "Long.txt").read_text()
+        check(not (out / "Long.srt").exists() and not (out / "Long.json").exists(), "TXT only: no other files in output folder")
+        check(long_txt.count("\n\n[") >= 3 and "[01:" in long_txt, "Long TXT split into minute paragraphs")
+        lid = srv.job("Long.wav")["id"]
+        check(b"-->" in srv.get(f"/api/jobs/{lid}/download/srt"), "SRT still downloadable (generated on demand)")
 
-        print("Upload (Drag & Drop) …")
+        print("Upload (drag & drop) …")
         src = media / "Testvideo.mp4"
         raw = src.read_bytes()
-        info = {"path": "Upload/Hochgeladen.mp4", "size": len(raw), "mtime": src.stat().st_mtime}
+        info = {"path": "Upload/Uploaded.mp4", "size": len(raw), "mtime": src.stat().st_mtime}
         c = srv.post("/api/uploads/check", {"files": [info]})
-        check(c["files"][0]["state"] == "needed", "Upload-Prüfung erkennt neue Datei")
+        check(c["files"][0]["state"] == "needed", "Upload check detects a new file")
         q = urllib.parse.urlencode(info)
         srv.req("PUT", f"/api/uploads?{q}", raw=raw, headers={"Content-Type": "application/octet-stream"})
         s = srv.post("/api/jobs/add-uploaded", {"files": [info]})
-        check(s["added"] == 1, "Hochgeladene Datei eingereiht")
+        check(s["added"] == 1, "Uploaded file queued")
         srv.post("/api/queue/start")
         srv.wait_idle()
-        check(srv.job("Hochgeladen")["status"] == "done", "Hochgeladene Datei transkribiert")
-        check(not (data / "uploads" / "Upload" / "Hochgeladen.mp4").exists(), "Upload-Kopie nach Erfolg gelöscht")
+        check(srv.job("Uploaded")["status"] == "done", "Uploaded file transcribed")
+        check(not (data / "uploads" / "Upload" / "Uploaded.mp4").exists(), "Upload copy deleted after success")
         c = srv.post("/api/uploads/check", {"files": [info]})
-        check(c["files"][0]["state"] == "done", "Erneuter Upload wird als bereits erledigt erkannt")
+        check(c["files"][0]["state"] == "done", "Re-upload recognized as already done")
 
-        print("Neustart während der Verarbeitung …")
-        shutil.copy(tmp / "Lang.wav", tmp / "Lang2.wav")
-        srv.post("/api/jobs/add-paths", {"paths": [str(tmp / "Lang2.wav")]})
+        print("Restart during processing …")
+        shutil.copy(tmp / "Long.wav", tmp / "Long2.wav")
+        srv.post("/api/jobs/add-paths", {"paths": [str(tmp / "Long2.wav")]})
         srv.post("/api/queue/start")
         t0 = time.time()
-        while srv.job("Lang2")["status"] != "running" and time.time() - t0 < 60:
+        while srv.job("Long2")["status"] != "running" and time.time() - t0 < 60:
             time.sleep(0.05)
         srv.kill()
         srv.start()
-        j = srv.job("Lang2")
-        check(j["status"] == "queued", "Nach hartem Neustart wieder in der Warteschlange")
-        check(srv.job("Testvideo")["status"] == "done", "Fertige Jobs bleiben nach Neustart erhalten")
+        j = srv.job("Long2")
+        check(j["status"] == "queued", "Back in the queue after a hard restart")
+        check(srv.job("Testvideo")["status"] == "done", "Finished jobs survive a restart")
         srv.post("/api/queue/start")
         srv.wait_idle()
-        check(srv.job("Lang2")["status"] == "done", "Nach Neustart fortgesetzt und fertig")
+        check(srv.job("Long2")["status"] == "done", "Resumed and finished after restart")
         srv.log.flush()
         log_text = (data / "server.log").read_text(errors="replace")
-        check("Exception in ASGI application" not in log_text, "Keine API-Fehler im Server-Log (auch bei parallelem Abfragen)")
+        check("Exception in ASGI application" not in log_text, "No API errors in the server log (incl. concurrent polling)")
         ok = True
     except Fail as exc:
         print(f"\n  ✗ {exc}")
@@ -281,12 +307,12 @@ def main():
         if not ok:
             log = data / "server.log"
             if log.exists():
-                print("\n--- Server-Log ---\n" + log.read_text(errors="replace")[-4000:])
+                print("\n--- Server log ---\n" + log.read_text(errors="replace")[-4000:])
         if args.keep or not ok:
-            print(f"\nTestdaten: {tmp}")
+            print(f"\nTest data: {tmp}")
         else:
             shutil.rmtree(tmp, ignore_errors=True)
-    print("\nFunktionstest bestanden ✓" if ok else "\nFunktionstest FEHLGESCHLAGEN ✗")
+    print("\nSelf test passed ✓" if ok else "\nSelf test FAILED ✗")
     sys.exit(0 if ok else 1)
 
 

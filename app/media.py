@@ -29,7 +29,7 @@ def ffmpeg_path():
 
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception as exc:  # pragma: no cover
-        raise RuntimeError("FFmpeg wurde nicht gefunden. Bitte setup.sh erneut ausführen.") from exc
+        raise RuntimeError("error.ffmpeg_missing") from exc
 
 
 def is_media(path):
@@ -100,11 +100,11 @@ def extract_audio(src, dst_wav, cancel_event=None):
         err = proc.stderr.read().decode("utf-8", "replace").strip()
         if proc.returncode != 0:
             if "does not contain any stream" in err or "matches no streams" in err:
-                raise RuntimeError("Die Datei enthält keine Audiospur.")
+                raise RuntimeError("error.no_audio")
             if "Invalid data found" in err or "moov atom not found" in err:
-                raise RuntimeError("Datei ist beschädigt oder unvollständig – FFmpeg kann sie nicht lesen.")
-            last = err.splitlines()[-1] if err else f"Exit-Code {proc.returncode}"
-            raise RuntimeError(f"FFmpeg-Fehler: {last[-300:]}")
+                raise RuntimeError("error.corrupt")
+            last = err.splitlines()[-1] if err else f"exit code {proc.returncode}"
+            raise RuntimeError(f"error.ffmpeg: {last[-300:]}")
     finally:
         if proc.poll() is None:
             proc.kill()
@@ -118,7 +118,7 @@ def load_wav(path):
 
     with wave.open(str(path), "rb") as w:
         if w.getframerate() != SAMPLE_RATE or w.getnchannels() != 1 or w.getsampwidth() != 2:
-            raise RuntimeError("Unerwartetes Audioformat nach der Extraktion.")
+            raise RuntimeError("error.audio_format")
         frames = w.readframes(w.getnframes())
     return np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
 

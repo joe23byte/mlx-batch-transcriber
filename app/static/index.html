@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Transkription</title>
+  <title>Transcriber</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -12,12 +12,16 @@
       <span class="logo" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg>
       </span>
-      <h1>Transkription</h1>
-      <span class="sub">MLX Whisper · lokal &amp; offline</span>
+      <h1 data-i18n="app.title">Transcriber</h1>
+      <span class="sub" data-i18n="app.subtitle">MLX Whisper · local &amp; offline</span>
     </div>
     <div class="chips">
       <span class="chip" id="chip-device">GPU</span>
-      <span class="chip" id="chip-model">Modell nicht geladen</span>
+      <span class="chip" id="chip-model" data-i18n="chip.model_none">Model not loaded</span>
+      <div class="seg lang-switch" id="lang-switch" role="group" data-i18n-title="app.language">
+        <button data-lang="en">EN</button>
+        <button data-lang="de">DE</button>
+      </div>
     </div>
   </header>
 
@@ -28,20 +32,20 @@
         <input type="file" id="input-dir" webkitdirectory directory multiple hidden>
         <div class="drop-inner">
           <svg class="drop-icon" viewBox="0 0 24 24" width="36" height="36"><path fill="currentColor" d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96ZM14 13v4h-4v-4H7l5-5 5 5h-3Z"/></svg>
-          <p class="drop-title">Videos oder Ordner hierher ziehen</p>
+          <p class="drop-title" data-i18n="drop.title">Drop videos or folders here</p>
           <p class="drop-hint">MP4 · MOV · MKV · WebM · MP3 · WAV · M4A</p>
           <div class="drop-actions">
-            <button class="btn" id="btn-pick-files">Dateien wählen …</button>
-            <button class="btn" id="btn-pick-folder">Ordner wählen …</button>
+            <button class="btn" id="btn-pick-files" data-i18n="drop.pick_files">Choose files …</button>
+            <button class="btn" id="btn-pick-folder" data-i18n="drop.pick_folder">Choose folder …</button>
           </div>
           <form class="path-form" id="path-form">
-            <input type="text" id="path-input" placeholder="… oder Pfad einfügen, z. B. ~/Videos/Projekt" autocomplete="off" spellcheck="false">
-            <button class="btn ghost" type="submit">Hinzufügen</button>
+            <input type="text" id="path-input" data-i18n-placeholder="drop.path_placeholder" autocomplete="off" spellcheck="false">
+            <button class="btn ghost" type="submit" data-i18n="drop.add">Add</button>
           </form>
-          <p class="drop-note">„Wählen“ und Pfade verarbeiten die Dateien direkt am Speicherort. Per Drag &amp; Drop gezogene Dateien werden zuerst in den lokalen Arbeitsordner kopiert.</p>
+          <p class="drop-note" data-i18n="drop.note"></p>
         </div>
         <div class="upload-status" id="upload-status" hidden>
-          <div class="upload-text"><span id="upload-label">Kopiere …</span><span id="upload-pct"></span></div>
+          <div class="upload-text"><span id="upload-label"></span><span id="upload-pct"></span></div>
           <div class="bar"><div class="bar-fill" id="upload-bar"></div></div>
         </div>
       </div>
@@ -49,23 +53,23 @@
       <div class="card queue">
         <div class="queue-head">
           <div class="queue-title">
-            <h2>Warteschlange</h2>
+            <h2 data-i18n="queue.title">Queue</h2>
             <span class="muted" id="queue-counts"></span>
           </div>
           <div class="queue-actions">
-            <button class="btn primary" id="btn-start">Starten</button>
-            <button class="btn danger" id="btn-cancel" hidden>Abbrechen</button>
-            <button class="btn" id="btn-retry-failed" hidden>Fehlgeschlagene wiederholen</button>
+            <button class="btn primary" id="btn-start" data-i18n="queue.start">Start</button>
+            <button class="btn danger" id="btn-cancel" hidden data-i18n="queue.cancel">Cancel</button>
+            <button class="btn" id="btn-retry-failed" hidden data-i18n="queue.retry_failed">Retry failed</button>
             <div class="menu">
-              <button class="btn icon" id="btn-menu" title="Weitere Aktionen" aria-label="Weitere Aktionen">⋯</button>
+              <button class="btn icon" id="btn-menu" data-i18n-title="queue.more">⋯</button>
               <div class="menu-pop" id="menu-pop" hidden>
-                <button data-act="merge">Alle Transkripte zusammenführen</button>
-                <button data-act="merged-dl">Zusammengeführte Datei herunterladen</button>
-                <button data-act="open-output">Ausgabeordner im Finder öffnen</button>
+                <button data-act="merge" data-i18n="menu.merge"></button>
+                <button data-act="merged-dl" data-i18n="menu.merged_dl"></button>
+                <button data-act="open-output" data-i18n="menu.open_output"></button>
                 <hr>
-                <button data-act="clear-done">Fertige aus Liste entfernen</button>
-                <button data-act="clear-finished">Fertige &amp; fehlgeschlagene entfernen</button>
-                <button data-act="clear-all" class="danger-text">Liste komplett leeren</button>
+                <button data-act="clear-done" data-i18n="menu.clear_done"></button>
+                <button data-act="clear-finished" data-i18n="menu.clear_finished"></button>
+                <button data-act="clear-all" class="danger-text" data-i18n="menu.clear_all"></button>
               </div>
             </div>
           </div>
@@ -81,7 +85,7 @@
         </div>
 
         <div class="empty" id="empty">
-          <p>Noch keine Dateien in der Warteschlange.</p>
+          <p data-i18n="queue.empty"></p>
         </div>
         <ul class="jobs" id="jobs"></ul>
       </div>
@@ -89,63 +93,63 @@
 
     <aside class="side-col">
       <div class="card settings">
-        <h2>Einstellungen</h2>
+        <h2 data-i18n="settings.title">Settings</h2>
         <label class="field">
-          <span>Modell</span>
+          <span data-i18n="settings.model">Model</span>
           <select id="set-model"></select>
           <small class="muted" id="model-info"></small>
         </label>
         <label class="field">
-          <span>Sprache</span>
+          <span data-i18n="settings.language">Spoken language</span>
           <select id="set-language"></select>
         </label>
         <label class="toggle">
           <input type="checkbox" id="set-recursive">
           <span class="switch"></span>
-          <span>Unterordner einbeziehen</span>
+          <span data-i18n="settings.recursive"></span>
         </label>
         <label class="toggle">
           <input type="checkbox" id="set-merge">
           <span class="switch"></span>
-          <span>Am Ende alle Transkripte in einer Datei zusammenführen</span>
+          <span data-i18n="settings.merge"></span>
         </label>
         <label class="toggle">
           <input type="checkbox" id="set-delete-uploads">
           <span class="switch"></span>
-          <span>Kopien von Drag-&amp;-Drop-Dateien nach Erfolg löschen</span>
+          <span data-i18n="settings.delete_uploads"></span>
         </label>
         <label class="field">
-          <span>Ausgabeordner</span>
+          <span data-i18n="settings.output">Output folder</span>
           <div class="inline">
             <input type="text" id="set-output" spellcheck="false">
-            <button class="btn icon" id="btn-pick-output" title="Ordner wählen" aria-label="Ausgabeordner wählen">…</button>
+            <button class="btn icon" id="btn-pick-output" data-i18n-title="settings.output_pick">…</button>
           </div>
-          <small class="muted">Dateiname = Name des Videos, z. B. „Interview 01.txt“.</small>
+          <small class="muted" data-i18n="settings.output_hint"></small>
         </label>
         <div class="field">
-          <span>Dateien im Ausgabeordner</span>
+          <span data-i18n="settings.formats"></span>
           <div class="formats" id="set-formats">
             <label><input type="checkbox" value="txt" checked disabled> TXT</label>
             <label><input type="checkbox" value="srt"> SRT</label>
             <label><input type="checkbox" value="vtt"> VTT</label>
             <label><input type="checkbox" value="json"> JSON</label>
           </div>
-          <small class="muted">Alle Formate bleiben in der Liste jederzeit herunterladbar.</small>
+          <small class="muted" data-i18n="settings.formats_hint"></small>
         </div>
         <label class="toggle">
           <input type="checkbox" id="set-timestamps">
           <span class="switch"></span>
-          <span>Zeitmarken im TXT (ein Absatz pro Minute, z. B. [03:12])</span>
+          <span data-i18n="settings.timestamps"></span>
         </label>
         <label class="field">
-          <span>Fachbegriffe / Kontext <em class="muted">(optional)</em></span>
-          <textarea id="set-prompt" rows="3" placeholder="z. B. Produktnamen, Personen, Fachbegriffe"></textarea>
-          <small class="muted">Hilft Whisper bei Namen und Fachwörtern.</small>
+          <span><span data-i18n="settings.prompt"></span> <em class="muted" data-i18n="settings.optional"></em></span>
+          <textarea id="set-prompt" rows="3" data-i18n-placeholder="settings.prompt_placeholder"></textarea>
+          <small class="muted" data-i18n="settings.prompt_hint"></small>
         </label>
         <label class="field">
-          <span>Ersetzungen <em class="muted">(optional)</em></span>
+          <span><span data-i18n="settings.replacements"></span> <em class="muted" data-i18n="settings.optional"></em></span>
           <textarea id="set-replacements" rows="3" spellcheck="false" placeholder="Open AI => OpenAI"></textarea>
-          <small class="muted">Eine Regel pro Zeile, gilt für ganze Wörter. Wird beim Schreiben der Transkripte angewendet.</small>
+          <small class="muted" data-i18n="settings.replacements_hint"></small>
         </label>
         <div class="saved muted" id="saved-hint">&nbsp;</div>
       </div>
@@ -163,15 +167,15 @@
           <h3 id="modal-title"></h3>
           <span class="muted small" id="modal-sub"></span>
         </div>
-        <button class="btn icon" data-close aria-label="Schließen">✕</button>
+        <button class="btn icon" data-close data-i18n-title="modal.close">✕</button>
       </div>
       <div class="modal-tools">
-        <div class="seg">
-          <button class="active" data-view="text">Text</button>
-          <button data-view="segments">Mit Zeitstempeln</button>
+        <div class="seg" id="view-switch">
+          <button class="active" data-view="text" data-i18n="modal.text">Text</button>
+          <button data-view="segments" data-i18n="modal.segments">With timestamps</button>
         </div>
         <div class="modal-actions">
-          <button class="btn primary" id="modal-copy">Kopieren</button>
+          <button class="btn primary" id="modal-copy" data-i18n="modal.copy">Copy</button>
           <span class="dl" id="modal-dl"></span>
         </div>
       </div>
@@ -180,6 +184,7 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
+  <script src="/static/i18n.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

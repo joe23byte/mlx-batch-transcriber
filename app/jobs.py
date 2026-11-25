@@ -7,7 +7,7 @@ from .config import UPLOAD_DIR
 def sanitize_relpath(rel):
     parts = [p for p in PurePosixPath(str(rel).replace("\\", "/")).parts if p not in ("", ".", "..", "/")]
     if not parts:
-        raise ValueError("Ungültiger Dateiname")
+        raise ValueError("error.invalid_name")
     return Path(*parts)
 
 
